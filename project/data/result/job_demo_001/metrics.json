@@ -1,0 +1,5 @@
+{
+  "topic_quality": { "coherence_npmi": 0.356, "diversity": 0.84 },
+  "model_performance": { "perplexity": 1250.4, "reconstruction_loss": 3.21 },
+  "training_info": { "total_epochs": 50, "training_time_seconds": 520 }
+}
