@@ -42,15 +42,33 @@ def _format_all_topics(topics: List[Dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+def _format_downloads(charts: Dict[str, Any], downloads: Dict[str, Any]) -> str:
+    chart_lines = [
+        f"topic_distribution: {charts.get('topic_distribution', '')}",
+        f"heatmap: {charts.get('heatmap', '')}",
+        f"coherence_curve: {charts.get('coherence_curve', '')}",
+        f"topic_similarity: {charts.get('topic_similarity', '')}",
+    ]
+    download_lines = [
+        f"report: {downloads.get('report', '')}",
+        f"theta_csv: {downloads.get('theta_csv', '')}",
+        f"beta_csv: {downloads.get('beta_csv', '')}",
+    ]
+    return "\n".join(["图表:"] + chart_lines + ["下载:"] + download_lines)
+
+
 def _answer_question(question: str, analysis: Dict[str, Any]) -> str:
     if not analysis:
         return "未找到分析结果，请先运行 run_agent_pipeline.py 生成 analysis_result.json。"
 
     topics = analysis.get("topics", [])
+    charts = analysis.get("charts", {})
+    downloads = analysis.get("downloads", {})
     query = question.lower()
 
     top_keywords = ["占比最高", "top", "最高"]
     list_keywords = ["主题列表", "主题概览", "主题概况", "topic list"]
+    download_keywords = ["下载链接", "图表", "charts", "downloads", "链接"]
 
     if any(keyword in query for keyword in top_keywords):
         return _format_top_topics(topics)
@@ -58,7 +76,10 @@ def _answer_question(question: str, analysis: Dict[str, Any]) -> str:
     if any(keyword in query for keyword in list_keywords):
         return _format_all_topics(topics)
 
-    return _format_top_topics(topics)
+    if any(keyword in query for keyword in download_keywords):
+        return _format_downloads(charts, downloads)
+
+    return "可以询问：有哪些主题占比最高？ / 给我主题列表 / 下载链接有哪些？"
 
 
 def main() -> None:

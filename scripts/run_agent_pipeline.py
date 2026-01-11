@@ -91,34 +91,24 @@ def _load_theta(theta_path: Path, logger: logging.Logger) -> np.ndarray:
 
 def _build_topic_name(topic_id: int, keywords: List[str]) -> str:
     if keywords:
-        return f"Topic {topic_id}"
-    return f"Topic {topic_id}"
+        short = " ".join(keywords[:2])
+        if short.strip():
+            return f"Topic {topic_id}: {short}"
+    return f"Topic_{topic_id}"
 
 
-def _load_metrics(metrics_path: Path, logger: logging.Logger) -> Dict[str, Any]:
+def _load_metrics(metrics_path: Path, logger: logging.Logger) -> Tuple[Any, Any]:
     if not metrics_path.exists():
         logger.warning("Metrics file not found: %s", metrics_path)
-        return {
-            "coherence_score": None,
-            "diversity_score": None,
-            "optimal_k": None,
-        }
+        return None, None
     try:
         metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         logger.warning("Failed to parse metrics.json: %s", exc)
-        return {
-            "coherence_score": None,
-            "diversity_score": None,
-            "optimal_k": None,
-        }
+        return None, None
 
     topic_quality = metrics.get("topic_quality", {})
-    return {
-        "coherence_score": topic_quality.get("coherence_npmi"),
-        "diversity_score": topic_quality.get("diversity"),
-        "optimal_k": metrics.get("num_topics"),
-    }
+    return topic_quality.get("coherence_npmi"), topic_quality.get("diversity")
 
 
 def _export_theta_csv(theta: np.ndarray, output_path: Path, logger: logging.Logger) -> None:
@@ -150,13 +140,10 @@ def _format_completed_at() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
 
-def _ensure_keywords(
-    keywords: List[str], topic_id: int, logger: logging.Logger
-) -> List[str]:
-    trimmed = keywords[:10]
-    if len(trimmed) < 5:
-        logger.warning("Topic %s has fewer than 5 keywords", topic_id)
-        trimmed.extend([""] * (5 - len(trimmed)))
+def _trim_keywords(keywords: List[str], topic_id: int, logger: logging.Logger) -> List[str]:
+    trimmed = keywords[:5]
+    if not trimmed:
+        logger.warning("Topic %s has no keywords", topic_id)
     return trimmed
 
 
@@ -211,7 +198,7 @@ def main() -> None:
         topic_prevalence = theta.mean(axis=0)
 
         for topic_id in range(num_topics):
-            keywords = _ensure_keywords(topic_words[topic_id], topic_id, logger)
+            keywords = _trim_keywords(topic_words[topic_id], topic_id, logger)
             _check_wordcloud(job_id, topic_id, root, logger)
             topics.append(
                 {
@@ -225,7 +212,12 @@ def main() -> None:
 
         _export_theta_csv(theta, theta_csv_path, logger)
         _export_beta_csv(beta_path, beta_csv_path, logger)
-        metrics = _load_metrics(metrics_path, logger)
+        coherence_score, diversity_score = _load_metrics(metrics_path, logger)
+        metrics = {
+            "coherence_score": coherence_score,
+            "diversity_score": diversity_score,
+            "optimal_k": int(num_topics),
+        }
     except Exception as exc:  # pragma: no cover - defensive
         status = "failed"
         logger.exception("Pipeline failed: %s", exc)
